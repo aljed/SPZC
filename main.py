@@ -32,7 +32,7 @@ class MyProxy(http.server.SimpleHTTPRequestHandler):
         opened = urllib.request.urlopen(f'{TARGET}/{url}')
         tagged = tagger.tag_file(opened.read())
         randomized = r.randomize(tagged, self.ck)
-        self.wfile.write(randomized)
+        self.wfile.write(randomized.encode('latin-1'))
 
     def do_POST(self):
         url = self.path
@@ -45,7 +45,10 @@ class MyProxy(http.server.SimpleHTTPRequestHandler):
 
         self.send_response(200)
         self.end_headers()
-        self.copyfile(output, self.wfile)
+
+        tagged = tagger.tag_file(output.read())
+        randomized = r.randomize(tagged, self.ck)
+        self.wfile.write(randomized.encode('latin-1'))
 
 
 def main():

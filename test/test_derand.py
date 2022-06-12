@@ -43,7 +43,7 @@ class Derand(unittest.TestCase):
         </form>
         """
         ck = b"1111222233334444"
-        tagged = tag_file(no_id_html_str)
+        tagged = tag_file(no_id_html_str.encode())
         self.assertEqual(no_id_html_str, tagged)
         enc = r.randomize(tagged, ck)
         self.assertEqual(no_id_html_str, enc)
