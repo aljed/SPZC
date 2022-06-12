@@ -1,13 +1,11 @@
 import re
 from Crypto.Cipher import AES
-from Crypto.Random import get_random_bytes
 
-client_key = get_random_bytes(16)
+NONCE = b'aa'
 
-def randomize(file, ck):
 
-    cipher = AES.new(client_key, AES.MODE_EAX)
-    nonce = cipher.nonce
+def randomize(file, ck, nonce=NONCE):
+    cipher = AES.new(ck, AES.MODE_EAX, nonce=nonce)
 
     def convert_case(match_obj):
         return r'"_RaNmE_' + encrypted_map[match_obj.group(1)].decode('latin-1') + '"'
@@ -15,16 +13,13 @@ def randomize(file, ck):
     pattern = r'"_RaNmE_(.*?)"'
     all = set(re.findall(pattern, file))
     encrypted_map = {word: cipher.encrypt(word.encode('latin-1')) for word in all}
-    cipher = AES.new(client_key, AES.MODE_EAX, nonce=nonce)
-
-    decrypted = {word: cipher.decrypt(word) for word in encrypted_map.values()}
 
     text = re.sub(pattern, convert_case, file)
-    return text, nonce
+    return text
 
 
-def derandomize(file, ck, nonce):
-    cipher = AES.new(client_key, AES.MODE_EAX, nonce=nonce)
+def derandomize(file, ck, nonce=NONCE):
+    cipher = AES.new(ck, AES.MODE_EAX, nonce=nonce)
 
     def convert_case(match_obj):
         return r'"' + encrypted_map[match_obj.group(1)].decode('latin-1') + '"'
