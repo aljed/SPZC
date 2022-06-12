@@ -1,32 +1,40 @@
 import re
+import base64
+
 from Crypto.Cipher import AES
 
 NONCE = b'aa'
 
+rtagged_id_pattern = re.compile(r'"_RaNmE_(.*?)"')
+rtagged_data_pattern = re.compile(r'_RaNmE_(.*?)=([^=]*?)(&|$)')
 
-def randomize(file, ck, nonce=NONCE):
+
+def randomize(file: str, ck: bytes, nonce=NONCE):
     cipher = AES.new(ck, AES.MODE_EAX, nonce=nonce)
 
+    matched = set(rtagged_id_pattern.findall(file))
+    encrypted_map = {m: cipher.encrypt(m.encode()) for m in matched}
+
     def convert_case(match_obj):
-        return r'"_RaNmE_' + encrypted_map[match_obj.group(1)].decode('latin-1') + '"'
+        return '_RaNmE_' + base64.b64encode(encrypted_map[match_obj.group(1)]).decode()
 
-    pattern = r'"_RaNmE_(.*?)"'
-    all = set(re.findall(pattern, file))
-    encrypted_map = {word: cipher.encrypt(word.encode('latin-1')) for word in all}
-
-    text = re.sub(pattern, convert_case, file)
+    text = rtagged_id_pattern.sub(convert_case, file)
     return text
 
 
-def derandomize(file, ck, nonce=NONCE):
+def derandomize(content_data: bytes, ck: bytes, nonce=NONCE):
     cipher = AES.new(ck, AES.MODE_EAX, nonce=nonce)
 
+    matched = rtagged_data_pattern.findall(content_data.decode())
+    decrypted_map = {m[0]: cipher.decrypt(base64.b64decode(m[0].encode())) for m in matched}
+    print(f'{decrypted_map=}')
+
     def convert_case(match_obj):
-        return encrypted_map[match_obj.group(1)].decode('latin-1') + match_obj.group(2) + match_obj.group(3)
+        return '{decryped_id}={value}{opt}'.format(
+            decryped_id=decrypted_map[match_obj.group(1)].decode(),
+            value=match_obj.group(2),
+            opt=match_obj.group(3),
+        )
 
-    pattern = r'_RaNmE_(.*?)=(.*?)(&|$)'
-    all = re.findall(pattern, file)
-    encrypted_map = {word[0]: cipher.decrypt(word[0].encode('latin-1')) for word in all}
-
-    text = re.sub(pattern, convert_case, file)
-    return text.encode('latin-1')
+    text = rtagged_data_pattern.sub(convert_case, content_data.decode())
+    return text
