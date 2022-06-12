@@ -3,7 +3,7 @@ import randomizer as r
 
 
 def tag_file(file):
-    text = file
+    text = file.decode('latin-1')
     tag = r'(button|textarea|textbox|checkbox|input|select|option|optgroup|fieldset|label|datalist)'
 
     pattern = r'<' + tag + r' (.*) id="(.*?)"(.*)>'

@@ -29,4 +29,4 @@ def derandomize(file, ck, nonce=NONCE):
     encrypted_map = {word: cipher.decrypt(word.encode('latin-1')) for word in all}
 
     text = re.sub(pattern, convert_case, file)
-    return text
+    return text.encode('latin-1')
