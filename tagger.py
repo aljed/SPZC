@@ -1,19 +1,18 @@
 import re
-import randomizer as r
+from string import Template
 
 
-def tag_file(file: str):
-    text = file
-    tag = r'(button|textarea|textbox|checkbox|input|select|option|optgroup|fieldset|label|datalist|form)'
+def tag_html(html: str) -> str:
+    text = html
+    vuln_tag = r'(button|textarea|textbox|checkbox|input|select|option|optgroup|fieldset|label|datalist|form)'
+    pattern_temp = Template(r'<' + vuln_tag + r'(.*)$tag="(.*?)"(.*)>')
+    replacement_temp = Template(r'<\1\2$tag="_RaNmE_\3"\4>')
 
-    pattern = r'<' + tag + r' (.*) id="(.*?)"(.*)>'
-    replacement = r'<\1 \2 id="_RaNmE_\3"\4>'
-    text = re.sub(pattern, replacement, text)
-    pattern = r'<' + tag + r'(.*) for="(.*?)"(.*)>'
-    replacement = r'<\1 \2 for="_RaNmE_\3"\4>'
-    text = re.sub(pattern, replacement, text)
-    pattern = r'<' + tag + r'(.*) name="(.*?)"(.*)>'
-    replacement = r'<\1 \2 name="_RaNmE_\3"\4>'
-    text = re.sub(pattern, replacement, text)
-
+    for tag in ['id', 'for', 'name']:
+        sub = {'tag': tag}
+        text = re.sub(
+            pattern_temp.substitute(sub),
+            replacement_temp.substitute(sub),
+            text,
+        )
     return text
