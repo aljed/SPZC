@@ -15,24 +15,30 @@ master_key = random.random()
 class MyProxy(http.server.SimpleHTTPRequestHandler):
     client_keys = {}
 
-    def add_client_key(self):
+    def _add_client_key(self):
         if self.client_address[0] not in self.client_keys:
-            self.client_keys[self.client_address[0]] = str(hash(str(master_key) + str(self.client_address[0])))[0:16].encode()
+            self.client_keys[self.client_address[0]] = self._get_client_session_key()
+
+    def _get_client_session_key(self):
+        return str(hash(str(master_key) + str(self.client_address[0])))[0:16].encode()
 
     @property
-    def ck(self):
+    def _ck(self):
         return self.client_keys[self.client_address[0]]
 
     def do_GET(self):
         url = self.path[1:]
         self.send_response(200)
         self.end_headers()
-        self.add_client_key()
+        self._add_client_key()
 
         opened = urllib.request.urlopen(f'{TARGET}/{url}')
-        tagged = tagger.tag_file(opened.read())
-        randomized = r.randomize(tagged, self.ck)
-        self.wfile.write(randomized.encode('latin-1'))
+        if 'html' in opened.headers._headers[-1][1]:
+            tagged = tagger.tag_html(opened.read().decode())
+            randomized = r.randomize(tagged, self._ck)
+            self.wfile.write(randomized.encode())
+        else:
+            self.copyfile(opened, self.wfile)
 
     def do_POST(self):
         url = self.path
@@ -40,15 +46,15 @@ class MyProxy(http.server.SimpleHTTPRequestHandler):
         content_length = int(self.headers.get('Content-Length', 0))
         content = self.rfile.read(content_length)
 
-        req = urllib.request.Request(f'{TARGET}/{url}', method="POST", data=r.derandomize(content.decode('latin-1'), self.ck))
+        req = urllib.request.Request(f'{TARGET}/{url}',method='POST', data=r.derandomize(content, self._ck))
         output = urllib.request.urlopen(req)
 
         self.send_response(200)
         self.end_headers()
 
-        tagged = tagger.tag_file(output.read())
-        randomized = r.randomize(tagged, self.ck)
-        self.wfile.write(randomized.encode('latin-1'))
+        tagged = tagger.tag_html(output.read().decode())
+        randomized = r.randomize(tagged, self._ck)
+        self.wfile.write(randomized.encode())
 
 
 def main():

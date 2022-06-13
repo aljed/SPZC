@@ -1,32 +1,53 @@
 import re
+import base64
+from urllib.parse import unquote
+
+from Crypto.Util.Padding import pad, unpad
 from Crypto.Cipher import AES
 
-NONCE = b'aa'
+BLOCK_SIZE = 32
+
+rtagged_id_pattern = re.compile(r'"_RaNmE_(.*?)"')
+rtagged_content_data_pattern = re.compile(r'_RaNmE_(.*?)=([^=]*?)(&|$)')
 
 
-def randomize(file, ck, nonce=NONCE):
-    cipher = AES.new(ck, AES.MODE_EAX, nonce=nonce)
+def _encrypt(cipher, input: bytes) -> bytes:
+    return cipher.encrypt(pad(input, BLOCK_SIZE))
+
+
+def _decrypt(cipher, input: bytes) -> bytes:
+    return unpad(cipher.decrypt(input), BLOCK_SIZE)
+
+
+def _decode_content_data(id: str) -> bytes:
+    return base64.b64decode(unquote(id).encode())
+
+
+def randomize(html: str, ck: bytes) -> str:
+    cipher = AES.new(ck, AES.MODE_ECB)
+
+    matched = set(rtagged_id_pattern.findall(html))
+    encrypted_map = {m: _encrypt(cipher, m.encode()) for m in matched}
 
     def convert_case(match_obj):
-        return r'"_RaNmE_' + encrypted_map[match_obj.group(1)].decode('latin-1') + '"'
+        return '"_RaNmE_' + base64.b64encode(encrypted_map[match_obj.group(1)]).decode() + '"'
 
-    pattern = r'"_RaNmE_(.*?)"'
-    all = set(re.findall(pattern, file))
-    encrypted_map = {word: cipher.encrypt(word.encode('latin-1')) for word in all}
-
-    text = re.sub(pattern, convert_case, file)
-    return text
+    return rtagged_id_pattern.sub(convert_case, html)
 
 
-def derandomize(file, ck, nonce=NONCE):
-    cipher = AES.new(ck, AES.MODE_EAX, nonce=nonce)
+def derandomize(content_data: bytes, ck: bytes) -> bytes:
+    cipher = AES.new(ck, AES.MODE_ECB)
+
+    matched = rtagged_content_data_pattern.findall(content_data.decode())
+    matched_ids = list(map(lambda x: x[0], matched))
+    decrypted_map = {m: _decrypt(cipher, _decode_content_data(m)) for m in matched_ids}
 
     def convert_case(match_obj):
-        return encrypted_map[match_obj.group(1)].decode('latin-1') + match_obj.group(2) + match_obj.group(3)
+        return '{decryped_id}={value}{opt}'.format(
+            decryped_id=decrypted_map[match_obj.group(1)].decode(),
+            value=match_obj.group(2),
+            opt=match_obj.group(3),
+        )
 
-    pattern = r'_RaNmE_(.*?)=(.*?)(&|$)'
-    all = re.findall(pattern, file)
-    encrypted_map = {word[0]: cipher.decrypt(word[0].encode('latin-1')) for word in all}
-
-    text = re.sub(pattern, convert_case, file)
-    return text.encode('latin-1')
+    text = rtagged_content_data_pattern.sub(convert_case, content_data.decode())
+    return text.encode()
